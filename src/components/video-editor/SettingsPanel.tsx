@@ -7,6 +7,7 @@ import {
 	FolderOpen,
 	Image,
 	Lock,
+	Music,
 	Palette,
 	Save,
 	Sparkles,
@@ -36,6 +37,7 @@ import { type AspectRatio } from "@/utils/aspectRatioUtils";
 import { getTestId } from "@/utils/getTestId";
 import { AnnotationSettingsPanel } from "./AnnotationSettingsPanel";
 import { CropControl } from "./CropControl";
+import { AUDIO_TRACKS, DEFAULT_BG_MUSIC_VOLUME, GRADIENTS, WALLPAPERS } from "./constants";
 import { KeyboardShortcutsHelp } from "./KeyboardShortcutsHelp";
 import type {
 	AnnotationRegion,
@@ -46,38 +48,6 @@ import type {
 	ZoomDepth,
 } from "./types";
 import { SPEED_OPTIONS } from "./types";
-
-const WALLPAPER_COUNT = 18;
-const WALLPAPER_RELATIVE = Array.from(
-	{ length: WALLPAPER_COUNT },
-	(_, i) => `wallpapers/wallpaper${i + 1}.jpg`,
-);
-const GRADIENTS = [
-	"linear-gradient( 111.6deg,  rgba(114,167,232,1) 9.4%, rgba(253,129,82,1) 43.9%, rgba(253,129,82,1) 54.8%, rgba(249,202,86,1) 86.3% )",
-	"linear-gradient(120deg, #d4fc79 0%, #96e6a1 100%)",
-	"radial-gradient( circle farthest-corner at 3.2% 49.6%,  rgba(80,12,139,0.87) 0%, rgba(161,10,144,0.72) 83.6% )",
-	"linear-gradient( 111.6deg,  rgba(0,56,68,1) 0%, rgba(163,217,185,1) 51.5%, rgba(231, 148, 6, 1) 88.6% )",
-	"linear-gradient( 107.7deg,  rgba(235,230,44,0.55) 8.4%, rgba(252,152,15,1) 90.3% )",
-	"linear-gradient( 91deg,  rgba(72,154,78,1) 5.2%, rgba(251,206,70,1) 95.9% )",
-	"radial-gradient( circle farthest-corner at 10% 20%,  rgba(2,37,78,1) 0%, rgba(4,56,126,1) 19.7%, rgba(85,245,221,1) 100.2% )",
-	"linear-gradient( 109.6deg,  rgba(15,2,2,1) 11.2%, rgba(36,163,190,1) 91.1% )",
-	"linear-gradient(135deg, #FBC8B4, #2447B1)",
-	"linear-gradient(109.6deg, #F635A6, #36D860)",
-	"linear-gradient(90deg, #FF0101, #4DFF01)",
-	"linear-gradient(315deg, #EC0101, #5044A9)",
-	"linear-gradient(45deg, #ff9a9e 0%, #fad0c4 99%, #fad0c4 100%)",
-	"linear-gradient(to top, #a18cd1 0%, #fbc2eb 100%)",
-	"linear-gradient(to right, #ff8177 0%, #ff867a 0%, #ff8c7f 21%, #f99185 52%, #cf556c 78%, #b12a5b 100%)",
-	"linear-gradient(120deg, #84fab0 0%, #8fd3f4 100%)",
-	"linear-gradient(to right, #4facfe 0%, #00f2fe 100%)",
-	"linear-gradient(to top, #fcc5e4 0%, #fda34b 15%, #ff7882 35%, #c8699e 52%, #7046aa 71%, #0c1db8 87%, #020f75 100%)",
-	"linear-gradient(to right, #fa709a 0%, #fee140 100%)",
-	"linear-gradient(to top, #30cfd0 0%, #330867 100%)",
-	"linear-gradient(to top, #c471f5 0%, #fa71cd 100%)",
-	"linear-gradient(to right, #f78ca0 0%, #f9748f 19%, #fd868c 60%, #fe9a8b 100%)",
-	"linear-gradient(to top, #48c6ef 0%, #6f86d6 100%)",
-	"linear-gradient(to right, #0acffe 0%, #495aff 100%)",
-];
 
 interface SettingsPanelProps {
 	selected: string;
@@ -132,6 +102,10 @@ interface SettingsPanelProps {
 	selectedSpeedValue?: PlaybackSpeed | null;
 	onSpeedChange?: (speed: PlaybackSpeed) => void;
 	onSpeedDelete?: (id: string) => void;
+	backgroundMusic?: string | null;
+	onBackgroundMusicChange?: (trackId: string | null) => void;
+	backgroundMusicVolume?: number;
+	onBackgroundMusicVolumeChange?: (volume: number) => void;
 }
 
 export default SettingsPanel;
@@ -197,6 +171,10 @@ export function SettingsPanel({
 	selectedSpeedValue,
 	onSpeedChange,
 	onSpeedDelete,
+	backgroundMusic,
+	onBackgroundMusicChange,
+	backgroundMusicVolume = DEFAULT_BG_MUSIC_VOLUME,
+	onBackgroundMusicVolumeChange,
 }: SettingsPanelProps) {
 	const [wallpaperPaths, setWallpaperPaths] = useState<string[]>([]);
 	const [customImages, setCustomImages] = useState<string[]>([]);
@@ -206,10 +184,10 @@ export function SettingsPanel({
 		let mounted = true;
 		(async () => {
 			try {
-				const resolved = await Promise.all(WALLPAPER_RELATIVE.map((p) => getAssetPath(p)));
+				const resolved = await Promise.all(WALLPAPERS.map((w) => getAssetPath(w.src)));
 				if (mounted) setWallpaperPaths(resolved);
-			} catch (_err) {
-				if (mounted) setWallpaperPaths(WALLPAPER_RELATIVE.map((p) => `/${p}`));
+			} catch {
+				if (mounted) setWallpaperPaths(WALLPAPERS.map((w) => `/${w.src}`));
 			}
 		})();
 		return () => {
@@ -236,7 +214,11 @@ export function SettingsPanel({
 	];
 
 	const [selectedColor, setSelectedColor] = useState("#ADADAD");
-	const [gradient, setGradient] = useState<string>(GRADIENTS[0]);
+	const [customAudioTracks, setCustomAudioTracks] = useState<
+		Array<{ label: string; dataUrl: string }>
+	>([]);
+	const audioFileInputRef = useRef<HTMLInputElement>(null);
+	const [gradient, setGradient] = useState<string>(GRADIENTS[0].value);
 	const [showCropModal, setShowCropModal] = useState(false);
 	const cropSnapshotRef = useRef<CropRegion | null>(null);
 	const [cropAspectLocked, setCropAspectLocked] = useState(false);
@@ -397,7 +379,7 @@ export function SettingsPanel({
 		setCustomImages((prev) => prev.filter((img) => img !== imageUrl));
 		// If the removed image was selected, clear selection
 		if (selected === imageUrl) {
-			onWallpaperChange(wallpaperPaths[0] || WALLPAPER_RELATIVE[0]);
+			onWallpaperChange(wallpaperPaths[0] || WALLPAPERS[0].src);
 		}
 	};
 
@@ -413,6 +395,36 @@ export function SettingsPanel({
 			onCropChange(cropSnapshotRef.current);
 		}
 		setShowCropModal(false);
+	};
+
+	const handleAudioUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+		const files = event.target.files;
+		if (!files || files.length === 0) return;
+		const file = files[0];
+		if (file.type !== "audio/mpeg") {
+			toast.error("Invalid file type", {
+				description: "Please upload an MP3 audio file.",
+			});
+			event.target.value = "";
+			return;
+		}
+		const reader = new FileReader();
+		reader.onload = (e) => {
+			const dataUrl = e.target?.result as string;
+			if (dataUrl) {
+				const label = file.name.replace(/\.mp3$/i, "");
+				setCustomAudioTracks((prev) => [...prev, { label, dataUrl }]);
+				onBackgroundMusicChange?.(dataUrl);
+				toast.success("Custom audio uploaded!");
+			}
+		};
+		reader.onerror = () => {
+			toast.error("Failed to upload audio", {
+				description: "There was an error reading the file.",
+			});
+		};
+		reader.readAsDataURL(file);
+		event.target.value = "";
 	};
 
 	// Find selected annotation
@@ -443,6 +455,40 @@ export function SettingsPanel({
 			/>
 		);
 	}
+
+	const renderTrackButton = (
+		key: string,
+		label: string,
+		isActive: boolean,
+		onClick: () => void,
+		onDelete?: () => void,
+	) => (
+		<div key={key} className={onDelete ? "relative group" : undefined}>
+			<button
+				type="button"
+				onClick={onClick}
+				className={`w-full flex items-center justify-between gap-2 p-2 rounded-lg border transition-all text-left ${
+					isActive
+						? "border-[#34B27B] bg-[#34B27B]/10 text-white"
+						: "border-white/5 bg-white/5 text-slate-400 hover:bg-white/10 hover:text-slate-200"
+				}`}
+			>
+				<div className="flex items-center gap-2">
+					<Music className="w-3.5 h-3.5 flex-shrink-0" />
+					<span className="text-[10px] font-medium truncate">{label}</span>
+				</div>
+				{onDelete && (
+					<button
+						type="button"
+						onClick={onDelete}
+						className="p-1 bg-[#34B27B] hover:bg-[#34B27B] rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity z-10"
+					>
+						<X className="w-2.5 h-2.5 text-white" />
+					</button>
+				)}
+			</button>
+		</div>
+	);
 
 	return (
 		<div className="flex-[2] min-w-0 bg-[#09090b] border border-white/5 rounded-2xl flex flex-col shadow-xl h-full overflow-hidden">
@@ -567,7 +613,11 @@ export function SettingsPanel({
 					)}
 				</div>
 
-				<Accordion type="multiple" defaultValue={["effects", "background"]} className="space-y-1">
+				<Accordion
+					type="multiple"
+					defaultValue={["effects", "background", "sound-effects"]}
+					className="space-y-1"
+				>
 					<AccordionItem value="effects" className="border-white/5 rounded-xl bg-white/[0.02] px-3">
 						<AccordionTrigger className="py-2.5 hover:no-underline">
 							<div className="flex items-center gap-2">
@@ -748,7 +798,7 @@ export function SettingsPanel({
 
 											{(wallpaperPaths.length > 0
 												? wallpaperPaths
-												: WALLPAPER_RELATIVE.map((p) => `/${p}`)
+												: WALLPAPERS.map((w) => `/${w.src}`)
 											).map((path) => {
 												const isSelected = (() => {
 													if (!selected) return false;
@@ -806,18 +856,18 @@ export function SettingsPanel({
 										<div className="grid grid-cols-7 gap-1.5">
 											{GRADIENTS.map((g, idx) => (
 												<div
-													key={g}
+													key={g.id}
 													className={cn(
 														"aspect-square w-9 h-9 rounded-md border-2 overflow-hidden cursor-pointer transition-all duration-200 shadow-sm",
-														gradient === g
+														gradient === g.value
 															? "border-[#34B27B] ring-1 ring-[#34B27B]/30"
 															: "border-white/10 hover:border-[#34B27B]/40 opacity-80 hover:opacity-100 bg-white/5",
 													)}
-													style={{ background: g }}
+													style={{ background: g.value }}
 													aria-label={`Gradient ${idx + 1}`}
 													onClick={() => {
-														setGradient(g);
-														onWallpaperChange(g);
+														setGradient(g.value);
+														onWallpaperChange(g.value);
 													}}
 													role="button"
 												/>
@@ -826,6 +876,79 @@ export function SettingsPanel({
 									</TabsContent>
 								</div>
 							</Tabs>
+						</AccordionContent>
+					</AccordionItem>
+
+					<AccordionItem
+						value="sound-effects"
+						className="border-white/5 rounded-xl bg-white/[0.02] px-3"
+					>
+						<AccordionTrigger className="py-2.5 hover:no-underline">
+							<div className="flex items-center gap-2">
+								<Music className="w-4 h-4 text-[#34B27B]" />
+								<span className="text-xs font-medium">Sound Effects</span>
+							</div>
+						</AccordionTrigger>
+						<AccordionContent className="pb-3">
+							<p className="text-[10px] text-slate-400 mb-2">Background Music</p>
+							<div className="space-y-1.5">
+								{AUDIO_TRACKS.map((track) => {
+									const isActive = backgroundMusic === track.id;
+									return renderTrackButton(track.id, track.label, isActive, () =>
+										onBackgroundMusicChange?.(isActive ? null : track.id),
+									);
+								})}
+								{customAudioTracks.map((track) => {
+									const isActive = backgroundMusic === track.dataUrl;
+									return renderTrackButton(
+										track.dataUrl,
+										track.label,
+										isActive,
+										() => onBackgroundMusicChange?.(isActive ? null : track.dataUrl),
+										() => {
+											setCustomAudioTracks((prev) =>
+												prev.filter((t) => t.dataUrl !== track.dataUrl),
+											);
+											if (isActive) {
+												onBackgroundMusicChange?.(null);
+											}
+										},
+									);
+								})}
+							</div>
+							<input
+								type="file"
+								ref={audioFileInputRef}
+								onChange={handleAudioUpload}
+								accept=".mp3,audio/mpeg"
+								className="hidden"
+							/>
+							<Button
+								onClick={() => audioFileInputRef.current?.click()}
+								variant="outline"
+								className="w-full mt-2 gap-2 bg-white/5 text-slate-200 border-white/10 hover:bg-[#34B27B] hover:text-white hover:border-[#34B27B] transition-all h-7 text-[10px]"
+							>
+								<Upload className="w-3 h-3" />
+								Upload Music
+							</Button>
+							{backgroundMusic && (
+								<div className="mt-3">
+									<div className="flex items-center justify-between mb-1.5">
+										<span className="text-[10px] text-slate-400">Volume</span>
+										<span className="text-[10px] text-slate-500">
+											{Math.round(backgroundMusicVolume * 100)}%
+										</span>
+									</div>
+									<Slider
+										value={[backgroundMusicVolume * 100]}
+										onValueChange={(values) => onBackgroundMusicVolumeChange?.(values[0] / 100)}
+										min={0}
+										max={100}
+										step={1}
+										className="w-full"
+									/>
+								</div>
+							)}
 						</AccordionContent>
 					</AccordionItem>
 				</Accordion>
