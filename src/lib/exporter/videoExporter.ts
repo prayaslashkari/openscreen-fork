@@ -30,6 +30,8 @@ interface VideoExporterConfig extends ExportConfig {
 	annotationRegions?: AnnotationRegion[];
 	previewWidth?: number;
 	previewHeight?: number;
+	backgroundMusicUrl?: string;
+	backgroundMusicVolume?: number;
 	onProgress?: (progress: ExportProgress) => void;
 }
 
@@ -97,8 +99,8 @@ export class VideoExporter {
 			// Initialize video encoder
 			await this.initializeEncoder();
 
-			// Initialize muxer (with audio if source has an audio track)
-			const hasAudio = videoInfo.hasAudio;
+			// Initialize muxer (with audio if source has an audio track or background music)
+			const hasAudio = videoInfo.hasAudio || !!this.config.backgroundMusicUrl;
 			this.muxer = new VideoMuxer(this.config, hasAudio);
 			await this.muxer.initialize();
 
@@ -257,7 +259,7 @@ export class VideoExporter {
 				});
 			}
 
-			// Process audio track if present
+			// Process audio track if present (or if background music is set)
 			if (hasAudio && !this.cancelled) {
 				const demuxer = this.streamingDecoder!.getDemuxer();
 				if (demuxer) {
@@ -270,6 +272,9 @@ export class VideoExporter {
 						this.config.trimRegions,
 						this.config.speedRegions,
 						readEndSec,
+						this.config.backgroundMusicUrl,
+						effectiveDuration,
+						this.config.backgroundMusicVolume,
 					);
 				}
 			}
