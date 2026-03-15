@@ -2,6 +2,7 @@ import type { ExportFormat, ExportQuality, GifFrameRate, GifSizePreset } from "@
 import type { ProjectMedia } from "@/lib/recordingSession";
 import { normalizeProjectMedia } from "@/lib/recordingSession";
 import { ASPECT_RATIOS, type AspectRatio } from "@/utils/aspectRatioUtils";
+import { DEFAULT_BG_MUSIC_VOLUME, WALLPAPERS } from "./constants";
 import {
 	type AnnotationRegion,
 	type CropRegion,
@@ -17,12 +18,7 @@ import {
 	type ZoomRegion,
 } from "./types";
 
-const WALLPAPER_COUNT = 18;
-
-export const WALLPAPER_PATHS = Array.from(
-	{ length: WALLPAPER_COUNT },
-	(_, i) => `/wallpapers/wallpaper${i + 1}.jpg`,
-);
+export const WALLPAPER_PATHS = WALLPAPERS.map((w) => `/${w.src}`);
 
 export const PROJECT_VERSION = 2;
 
@@ -44,6 +40,8 @@ export interface ProjectEditorState {
 	gifFrameRate: GifFrameRate;
 	gifLoop: boolean;
 	gifSizePreset: GifSizePreset;
+	backgroundMusic: string | null;
+	backgroundMusicVolume: number;
 }
 
 export interface EditorProjectData {
@@ -360,6 +358,10 @@ export function normalizeProjectEditor(editor: Partial<ProjectEditorState>): Pro
 			editor.gifSizePreset === "original"
 				? editor.gifSizePreset
 				: "medium",
+		backgroundMusic: typeof editor.backgroundMusic === "string" ? editor.backgroundMusic : null,
+		backgroundMusicVolume: isFiniteNumber(editor.backgroundMusicVolume)
+			? clamp(editor.backgroundMusicVolume, 0, 1)
+			: DEFAULT_BG_MUSIC_VOLUME,
 	};
 }
 
