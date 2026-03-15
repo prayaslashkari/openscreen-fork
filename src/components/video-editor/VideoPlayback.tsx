@@ -26,6 +26,7 @@ import {
 	getNativeAspectRatioValue,
 } from "@/utils/aspectRatioUtils";
 import { AnnotationOverlay } from "./AnnotationOverlay";
+import { DEFAULT_BG_MUSIC_VOLUME, resolveBackgroundMusicUrl } from "./constants";
 import {
 	type AnnotationRegion,
 	type SpeedRegion,
@@ -84,6 +85,8 @@ interface VideoPlaybackProps {
 	onSelectAnnotation?: (id: string | null) => void;
 	onAnnotationPositionChange?: (id: string, position: { x: number; y: number }) => void;
 	onAnnotationSizeChange?: (id: string, size: { width: number; height: number }) => void;
+	backgroundMusic?: string | null;
+	backgroundMusicVolume?: number;
 }
 
 export interface VideoPlaybackRef {
@@ -128,6 +131,8 @@ const VideoPlayback = forwardRef<VideoPlaybackRef, VideoPlaybackProps>(
 			onSelectAnnotation,
 			onAnnotationPositionChange,
 			onAnnotationSizeChange,
+			backgroundMusic,
+			backgroundMusicVolume = DEFAULT_BG_MUSIC_VOLUME,
 		},
 		ref,
 	) => {
@@ -183,6 +188,83 @@ const VideoPlayback = forwardRef<VideoPlaybackRef, VideoPlaybackProps>(
 		const onTimeUpdateRef = useRef(onTimeUpdate);
 		const onPlayStateChangeRef = useRef(onPlayStateChange);
 		const videoReadyRafRef = useRef<number | null>(null);
+		const bgAudioRef = useRef<HTMLAudioElement | null>(null);
+
+		// Background music management
+		// biome-ignore lint/correctness/useExhaustiveDependencies: backgroundMusicVolume is excluded — volume changes are handled by a dedicated effect
+		useEffect(() => {
+			if (bgAudioRef.current) {
+				bgAudioRef.current.pause();
+				bgAudioRef.current = null;
+			}
+
+			if (!backgroundMusic) return;
+
+			let cancelled = false;
+
+			const setupAudio = (audioUrl: string) => {
+				if (cancelled) return;
+				const audio = new Audio(audioUrl);
+				audio.loop = true;
+				audio.volume = backgroundMusicVolume;
+				audio.preload = "auto";
+				bgAudioRef.current = audio;
+
+				// Wait for audio to be ready, then auto-play if video is playing
+				const onReady = () => {
+					if (cancelled) return;
+					if (isPlayingRef.current) {
+						const video = videoRef.current;
+						if (video && audio.duration) {
+							audio.currentTime = video.currentTime % audio.duration;
+						}
+						audio.play().catch((_e) => {
+							/* autoplay blocked */
+						});
+					}
+				};
+				audio.addEventListener("canplaythrough", onReady, { once: true });
+				// Fire immediately if already ready (e.g. browser cache)
+				if (audio.readyState >= HTMLMediaElement.HAVE_ENOUGH_DATA) {
+					onReady();
+				}
+			};
+
+			resolveBackgroundMusicUrl(backgroundMusic, getAssetPath).then(setupAudio);
+
+			return () => {
+				cancelled = true;
+				if (bgAudioRef.current) {
+					bgAudioRef.current.pause();
+					bgAudioRef.current = null;
+				}
+			};
+		}, [backgroundMusic]);
+
+		// Update background music volume
+		useEffect(() => {
+			if (bgAudioRef.current) {
+				bgAudioRef.current.volume = backgroundMusicVolume;
+			}
+		}, [backgroundMusicVolume]);
+
+		// Sync background music with video play/pause
+		useEffect(() => {
+			const audio = bgAudioRef.current;
+			if (!audio || audio.readyState < 3) return;
+
+			if (isPlaying) {
+				const video = videoRef.current;
+				if (video && audio.duration) {
+					audio.currentTime = video.currentTime % audio.duration;
+				}
+				audio.play().catch((_e) => {
+					/* autoplay blocked */
+				});
+			} else {
+				audio.pause();
+			}
+		}, [isPlaying]);
 
 		const clampFocusToStage = useCallback((focus: ZoomFocus, depth: ZoomDepth) => {
 			return clampFocusToStageUtil(focus, depth, stageSizeRef.current);
