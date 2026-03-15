@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import { Toaster } from "@/components/ui/sonner";
 import { useShortcuts } from "@/contexts/ShortcutsContext";
 import { INITIAL_EDITOR_STATE, useEditorHistory } from "@/hooks/useEditorHistory";
+import { getAssetPath } from "@/lib/assetPath";
 import {
 	calculateOutputDimensions,
 	type ExportFormat,
@@ -20,6 +21,7 @@ import {
 import type { ProjectMedia } from "@/lib/recordingSession";
 import { matchesShortcut } from "@/lib/shortcuts";
 import { getAspectRatioValue, getNativeAspectRatioValue } from "@/utils/aspectRatioUtils";
+import { DEFAULT_BG_MUSIC_VOLUME, resolveBackgroundMusicUrl } from "./constants";
 import { ExportDialog } from "./ExportDialog";
 import PlaybackControls from "./PlaybackControls";
 import {
@@ -104,6 +106,8 @@ export default function VideoEditor() {
 	const [gifLoop, setGifLoop] = useState(true);
 	const [gifSizePreset, setGifSizePreset] = useState<GifSizePreset>("medium");
 	const [exportedFilePath, setExportedFilePath] = useState<string | null>(null);
+	const [backgroundMusic, setBackgroundMusic] = useState<string | null>(null);
+	const [backgroundMusicVolume, setBackgroundMusicVolume] = useState(DEFAULT_BG_MUSIC_VOLUME);
 	const [lastSavedSnapshot, setLastSavedSnapshot] = useState<string | null>(null);
 
 	const videoPlaybackRef = useRef<VideoPlaybackRef>(null);
@@ -179,6 +183,8 @@ export default function VideoEditor() {
 			setGifFrameRate(normalizedEditor.gifFrameRate);
 			setGifLoop(normalizedEditor.gifLoop);
 			setGifSizePreset(normalizedEditor.gifSizePreset);
+			setBackgroundMusic(normalizedEditor.backgroundMusic);
+			setBackgroundMusicVolume(normalizedEditor.backgroundMusicVolume);
 
 			setSelectedZoomId(null);
 			setSelectedTrimId(null);
@@ -245,6 +251,8 @@ export default function VideoEditor() {
 				gifFrameRate,
 				gifLoop,
 				gifSizePreset,
+				backgroundMusic,
+				backgroundMusicVolume,
 			}),
 		);
 	}, [
@@ -266,6 +274,8 @@ export default function VideoEditor() {
 		gifFrameRate,
 		gifLoop,
 		gifSizePreset,
+		backgroundMusic,
+		backgroundMusicVolume,
 	]);
 
 	const hasUnsavedChanges = Boolean(
@@ -357,6 +367,8 @@ export default function VideoEditor() {
 				gifFrameRate,
 				gifLoop,
 				gifSizePreset,
+				backgroundMusic,
+				backgroundMusicVolume,
 			});
 
 			const fileNameBase =
@@ -409,6 +421,8 @@ export default function VideoEditor() {
 			gifFrameRate,
 			gifLoop,
 			gifSizePreset,
+			backgroundMusic,
+			backgroundMusicVolume,
 			videoPath,
 		],
 	);
@@ -1128,6 +1142,10 @@ export default function VideoEditor() {
 						}
 					}
 
+					const backgroundMusicUrl = backgroundMusic
+						? await resolveBackgroundMusicUrl(backgroundMusic, getAssetPath)
+						: undefined;
+
 					const exporter = new VideoExporter({
 						videoUrl: videoPath,
 						webcamVideoUrl: webcamVideoPath || undefined,
@@ -1150,6 +1168,8 @@ export default function VideoEditor() {
 						annotationRegions,
 						previewWidth,
 						previewHeight,
+						backgroundMusicUrl,
+						backgroundMusicVolume,
 						onProgress: (progress: ExportProgress) => {
 							setExportProgress(progress);
 						},
@@ -1210,6 +1230,8 @@ export default function VideoEditor() {
 			padding,
 			cropRegion,
 			annotationRegions,
+			backgroundMusic,
+			backgroundMusicVolume,
 			isPlaying,
 			aspectRatio,
 			exportQuality,
@@ -1377,6 +1399,8 @@ export default function VideoEditor() {
 												onSelectAnnotation={handleSelectAnnotation}
 												onAnnotationPositionChange={handleAnnotationPositionChange}
 												onAnnotationSizeChange={handleAnnotationSizeChange}
+												backgroundMusic={backgroundMusic}
+												backgroundMusicVolume={backgroundMusicVolume}
 											/>
 										</div>
 									</div>
@@ -1516,6 +1540,10 @@ export default function VideoEditor() {
 							}
 							onSpeedChange={handleSpeedChange}
 							onSpeedDelete={handleSpeedDelete}
+							backgroundMusic={backgroundMusic}
+							onBackgroundMusicChange={setBackgroundMusic}
+							backgroundMusicVolume={backgroundMusicVolume}
+							onBackgroundMusicVolumeChange={setBackgroundMusicVolume}
 						/>
 					</Panel>
 				</PanelGroup>
