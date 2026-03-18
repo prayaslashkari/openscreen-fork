@@ -176,6 +176,13 @@ export class AudioProcessor {
 					channels,
 				);
 
+				const gain = backgroundMusicVolume ?? DEFAULT_BG_MUSIC_VOLUME;
+				if (gain !== 1) {
+					for (let i = 0; i < bgSamples.length; i++) {
+						bgSamples[i] *= gain;
+					}
+				}
+
 				const audioData = new AudioData({
 					format: "f32-planar",
 					sampleRate,
